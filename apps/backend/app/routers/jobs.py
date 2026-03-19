@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.database import db
-from app.schemas import JobDetail, JobSummary, JobUploadRequest, JobUploadResponse
+from app.schemas import JobDetail, JobSummary, JobUpdateRequest, JobUploadRequest, JobUploadResponse
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
@@ -92,4 +92,15 @@ async def get_job(job_id: str) -> JobDetail:
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    return _to_detail(job)
+
+
+@router.patch("/{job_id}", response_model=JobDetail)
+async def update_job(job_id: str, request: JobUpdateRequest) -> JobDetail:
+    """Update optional metadata (company, title, url) on a job description."""
+    if not db.get_job(job_id):
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    updates = {k: v for k, v in request.model_dump().items() if v is not None}
+    job = db.update_job(job_id, updates)
     return _to_detail(job)

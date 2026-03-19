@@ -367,6 +367,23 @@ export async function retryProcessing(resumeId: string): Promise<ResumeUploadRes
   return res.json();
 }
 
+export interface JobDetail {
+  job_id: string;
+  title: string | null;
+  company: string | null;
+  url: string | null;
+  content: string;
+  resume_id: string | null;
+  created_at: string;
+}
+
+/** Fetches a job by ID */
+export async function fetchJob(jobId: string): Promise<JobDetail | null> {
+  const res = await apiFetch(`/jobs/${encodeURIComponent(jobId)}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
 /** Fetches the job description used to tailor a resume */
 export async function fetchJobDescription(
   resumeId: string
@@ -391,6 +408,13 @@ export interface ScoreResult {
   color: string;
   cached: boolean;
   created_at: string;
+}
+
+/** Fetches the most recent cached score for a resume. Returns null if not scored yet. */
+export async function fetchLatestScore(resumeId: string): Promise<ScoreResult | null> {
+  const res = await apiFetch(`/scores/${encodeURIComponent(resumeId)}`);
+  if (!res.ok) return null;
+  return res.json();
 }
 
 /** Fetches a cached score for a resume-job pair. Returns null if not scored yet. */

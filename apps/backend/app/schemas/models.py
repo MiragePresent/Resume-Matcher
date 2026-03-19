@@ -462,6 +462,14 @@ class JobDetail(BaseModel):
     created_at: str
 
 
+class JobUpdateRequest(BaseModel):
+    """Request to update optional metadata on a job description."""
+
+    company: str | None = None
+    title: str | None = None
+    url: str | None = None
+
+
 # Improvement Models
 class ImproveResumeRequest(BaseModel):
     """Request to improve/tailor a resume."""

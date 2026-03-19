@@ -12,9 +12,10 @@ import {
   deleteResume,
   retryProcessing,
   renameResume,
-  fetchJobDescription,
-  fetchScore,
+  fetchLatestScore,
+  fetchJob,
   type ScoreResult,
+  type JobDetail,
 } from '@/lib/api/resume';
 import { useStatusCache } from '@/lib/context/status-cache';
 import { ArrowLeft, Edit, Download, Loader2, AlertCircle, Sparkles, Pencil } from 'lucide-react';
@@ -47,6 +48,7 @@ export default function ResumeViewerPage() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitleValue, setEditingTitleValue] = useState('');
   const [score, setScore] = useState<ScoreResult | null>(null);
+  const [jobDetail, setJobDetail] = useState<JobDetail | null>(null);
 
   const resumeId = params?.id as string;
 
@@ -112,10 +114,13 @@ export default function ResumeViewerPage() {
       }
 
       try {
-        const job = await fetchJobDescription(resumeId);
-        const cachedScore = await fetchScore(resumeId, job.job_id);
+        const cachedScore = await fetchLatestScore(resumeId);
         if (!cancelled) {
           setScore(cachedScore);
+          if (cachedScore?.job_id) {
+            const job = await fetchJob(cachedScore.job_id);
+            if (!cancelled) setJobDetail(job);
+          }
         }
       } catch {
         if (!cancelled) {
@@ -374,40 +379,6 @@ export default function ResumeViewerPage() {
           </div>
         )}
 
-        {score && (
-          <div className="mb-6 no-print border-2 border-black bg-white shadow-[4px_4px_0px_0px_#000000]">
-            <div className="flex items-center justify-between px-4 py-2 border-b border-black bg-[#F8F8F2]">
-              <span className="font-mono text-xs font-bold uppercase tracking-wider">Match Score</span>
-              <span className="font-mono text-xs text-gray-600">{score.label}</span>
-            </div>
-            <div className="px-4 py-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-3xl font-bold leading-none">{score.score}</span>
-                <span className="font-mono text-sm text-gray-500">/ 100</span>
-              </div>
-              {score.match_reasons && (
-                <p className="text-xs text-gray-700 leading-relaxed border-t border-gray-200 pt-2">
-                  {score.match_reasons}
-                </p>
-              )}
-              {Object.entries(score.red_flags).some(([, items]) => items.length > 0) && (
-                <div className="border-t border-gray-200 pt-2 space-y-1">
-                  {Object.entries(score.red_flags).map(([level, items]) => {
-                    if (items.length === 0) return null;
-                    const label =
-                      level === 'critical' ? 'Critical' : level === 'major' ? 'Major' : 'Minor';
-                    return (
-                      <p key={level} className="text-xs text-gray-600">
-                        {label}: {items.join(', ')}
-                      </p>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Resume Viewer */}
         <div className="flex justify-center pb-4">
           <div className="resume-print w-full max-w-[250mm] shadow-[8px_8px_0px_0px_#000000] border-2 border-black bg-white">
@@ -434,6 +405,62 @@ export default function ResumeViewerPage() {
             />
           </div>
         </div>
+
+        {score && (
+          <div className="flex justify-center no-print">
+            <div className="w-full max-w-[250mm] mt-4 border-2 border-black bg-white shadow-[4px_4px_0px_0px_#000000]">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-black bg-[#F8F8F2]">
+                <span className="font-mono text-xs font-bold uppercase tracking-wider">Match Score</span>
+                <span className="font-mono text-xs text-gray-600">{score.label}</span>
+              </div>
+              {(jobDetail?.company || jobDetail?.title || jobDetail?.url) && (
+                <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-200 bg-[#FAFAF6]">
+                  {jobDetail.title && (
+                    <span className="font-mono text-xs font-bold text-gray-800">{jobDetail.title}</span>
+                  )}
+                  {jobDetail.company && (
+                    <span className="font-mono text-xs text-gray-500">@ {jobDetail.company}</span>
+                  )}
+                  {jobDetail.url && (
+                    <a
+                      href={jobDetail.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-xs text-blue-700 underline hover:text-blue-900 ml-auto"
+                    >
+                      View posting ↗
+                    </a>
+                  )}
+                </div>
+              )}
+              <div className="px-4 py-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-3xl font-bold leading-none">{score.score}</span>
+                  <span className="font-mono text-sm text-gray-500">/ 100</span>
+                </div>
+                {score.match_reasons && (
+                  <p className="text-xs text-gray-700 leading-relaxed border-t border-gray-200 pt-2">
+                    {score.match_reasons}
+                  </p>
+                )}
+                {Object.entries(score.red_flags).some(([, items]) => items.length > 0) && (
+                  <div className="border-t border-gray-200 pt-2 space-y-1">
+                    {Object.entries(score.red_flags).map(([level, items]) => {
+                      if (items.length === 0) return null;
+                      const label =
+                        level === 'critical' ? 'Critical' : level === 'major' ? 'Major' : 'Minor';
+                      return (
+                        <p key={level} className="text-xs text-gray-600">
+                          {label}: {items.join(', ')}
+                        </p>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex justify-end pt-4 no-print">
           <Button variant="destructive" onClick={() => setShowDeleteDialog(true)}>

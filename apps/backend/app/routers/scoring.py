@@ -24,6 +24,18 @@ async def create_score(request: ScoreRequest) -> ScoreResult:
     return ScoreResult(**result)
 
 
+@router.get("/{resume_id}", response_model=ScoreResult | None)
+async def get_latest_score_for_resume(resume_id: str) -> ScoreResult | None:
+    """Return the most recent cached score for a resume, regardless of job.
+
+    Returns null if no score has been computed for this resume yet.
+    """
+    results = db.list_scores_by_resume(resume_id)
+    if not results:
+        return None
+    return ScoreResult(**{**results[0], "cached": True})
+
+
 @router.get("/{resume_id}/{job_id}", response_model=ScoreResult)
 async def get_score(resume_id: str, job_id: str) -> ScoreResult:
     """Retrieve a cached score for a resume-job pair.

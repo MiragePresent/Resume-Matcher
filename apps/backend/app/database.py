@@ -310,6 +310,12 @@ class Database:
         self.scores.insert(doc)
         return doc
 
+    def list_scores_by_resume(self, resume_id: str) -> list[dict[str, Any]]:
+        """Return all cached scores for a resume, sorted newest first."""
+        Score = Query()
+        results = self.scores.search(Score.resume_id == resume_id)
+        return sorted(results, key=lambda s: s.get("created_at", ""), reverse=True)
+
     def get_score(self, resume_id: str, job_id: str) -> dict[str, Any] | None:
         """Return the cached score for a resume-job pair, or None on miss."""
         Score = Query()
