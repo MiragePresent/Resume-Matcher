@@ -34,3 +34,14 @@ async def get_score(resume_id: str, job_id: str) -> ScoreResult:
     if not cached:
         raise HTTPException(status_code=404, detail="Score not found.")
     return ScoreResult(**{**cached, "cached": True})
+
+
+@router.delete("/{resume_id}/{job_id}", status_code=204)
+async def delete_score(resume_id: str, job_id: str) -> None:
+    """Delete the cached score for a resume-job pair.
+
+    Returns 204 on success, 404 if no score exists for this pair.
+    """
+    deleted = db.delete_score(resume_id, job_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Score not found.")

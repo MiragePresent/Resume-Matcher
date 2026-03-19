@@ -23,6 +23,8 @@ from app.schemas import (
     ApiKeysUpdateRequest,
     ApiKeysUpdateResponse,
     ResetDatabaseRequest,
+    ScoringConfigRequest,
+    ScoringConfigResponse,
 )
 from app.prompts import DEFAULT_IMPROVE_PROMPT_ID, IMPROVE_PROMPT_OPTIONS
 from app.config import (
@@ -457,6 +459,42 @@ async def delete_api_key(provider: str) -> dict:
     delete_api_key_from_config(provider)
 
     return {"message": f"API key for {provider} has been removed"}
+
+
+@router.get("/scoring", response_model=ScoringConfigResponse)
+async def get_scoring_config() -> ScoringConfigResponse:
+    """Get current scoring token limits."""
+    stored = _load_config()
+    return ScoringConfigResponse(
+        max_tokens_criterion=stored.get(
+            "scoring_max_tokens_criterion", settings.scoring_max_tokens_criterion
+        ),
+        max_tokens_reasons=stored.get(
+            "scoring_max_tokens_reasons", settings.scoring_max_tokens_reasons
+        ),
+    )
+
+
+@router.put("/scoring", response_model=ScoringConfigResponse)
+async def update_scoring_config(request: ScoringConfigRequest) -> ScoringConfigResponse:
+    """Update scoring token limits."""
+    stored = _load_config()
+
+    if request.max_tokens_criterion is not None:
+        stored["scoring_max_tokens_criterion"] = request.max_tokens_criterion
+    if request.max_tokens_reasons is not None:
+        stored["scoring_max_tokens_reasons"] = request.max_tokens_reasons
+
+    _save_config(stored)
+
+    return ScoringConfigResponse(
+        max_tokens_criterion=stored.get(
+            "scoring_max_tokens_criterion", settings.scoring_max_tokens_criterion
+        ),
+        max_tokens_reasons=stored.get(
+            "scoring_max_tokens_reasons", settings.scoring_max_tokens_reasons
+        ),
+    )
 
 
 @router.post("/reset")

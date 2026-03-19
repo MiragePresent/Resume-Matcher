@@ -1,5 +1,6 @@
 """Pydantic schemas for request/response models."""
 
+from app.schemas.scoring import ScoreRequest, ScoreResult
 from app.schemas.models import (
     AdditionalInfo,
     ApiKeyProviderStatus,
@@ -19,6 +20,8 @@ from app.schemas.models import (
     ImproveResumeConfirmRequest,
     ImproveResumeRequest,
     ImproveResumeResponse,
+    JobDetail,
+    JobSummary,
     JobUploadRequest,
     JobUploadResponse,
     LanguageConfigRequest,
@@ -36,6 +39,8 @@ from app.schemas.models import (
     ResumeDiffSummary,
     ResumeFieldDiff,
     ResetDatabaseRequest,
+    ScoringConfigRequest,
+    ScoringConfigResponse,
     ResumeData,
     ResumeFetchData,
     ResumeFetchResponse,
@@ -68,6 +73,8 @@ __all__ = [
     "ResumeFetchResponse",
     "ResumeSummary",
     "ResumeListResponse",
+    "JobDetail",
+    "JobSummary",
     "JobUploadRequest",
     "JobUploadResponse",
     "ImproveResumeRequest",
@@ -92,6 +99,8 @@ __all__ = [
     "ApiKeysUpdateRequest",
     "ApiKeysUpdateResponse",
     "ResetDatabaseRequest",
+    "ScoringConfigRequest",
+    "ScoringConfigResponse",
     "UpdateCoverLetterRequest",
     "UpdateOutreachMessageRequest",
     "UpdateTitleRequest",

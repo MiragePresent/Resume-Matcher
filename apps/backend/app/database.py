@@ -206,15 +206,25 @@ class Database:
         return len(updated) > 0
 
     # Job operations
-    def create_job(self, content: str, resume_id: str | None = None) -> dict[str, Any]:
+    def create_job(
+        self,
+        content: str,
+        resume_id: str | None = None,
+        company: str | None = None,
+        title: str | None = None,
+        url: str | None = None,
+    ) -> dict[str, Any]:
         """Create a new job description entry."""
         job_id = str(uuid4())
         now = datetime.now(timezone.utc).isoformat()
 
-        doc = {
+        doc: dict[str, Any] = {
             "job_id": job_id,
             "content": content,
             "resume_id": resume_id,
+            "company": company,
+            "title": title,
+            "url": url,
             "created_at": now,
         }
         self.jobs.insert(doc)
@@ -225,6 +235,10 @@ class Database:
         Job = Query()
         result = self.jobs.search(Job.job_id == job_id)
         return result[0] if result else None
+
+    def list_jobs(self) -> list[dict[str, Any]]:
+        """List all job descriptions."""
+        return list(self.jobs.all())
 
     def update_job(self, job_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
         """Update a job by ID."""
@@ -289,7 +303,6 @@ class Database:
             "ai_score": result.get("ai_score", 0),
             "match_reasons": result.get("match_reasons", ""),
             "red_flags": result.get("red_flags", {}),
-            "website": result.get("website", ""),
             "label": result.get("label", ""),
             "emoji": result.get("emoji", ""),
             "color": result.get("color", ""),
@@ -305,6 +318,17 @@ class Database:
             (Score.resume_id == resume_id) & (Score.job_id == job_id)
         )
         return result[0] if result else None
+
+    def delete_score(self, resume_id: str, job_id: str) -> bool:
+        """Delete the cached score for a resume-job pair.
+
+        Returns True if a record was deleted, False if none was found.
+        """
+        Score = Query()
+        removed = self.scores.remove(
+            (Score.resume_id == resume_id) & (Score.job_id == job_id)
+        )
+        return len(removed) > 0
 
     # Stats
     def get_stats(self) -> dict[str, Any]:

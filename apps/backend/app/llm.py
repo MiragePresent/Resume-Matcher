@@ -392,7 +392,7 @@ def _get_reasoning_effort(provider: str, model: str) -> str | None:
     _ = provider
     model_lower = model.lower()
     if "gpt-5" in model_lower:
-        return "minimal"
+        return "medium"
     return None
 
 

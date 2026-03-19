@@ -15,10 +15,30 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from app.config import settings
 from app.database import db
 from app.llm import complete, complete_json
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Scoring token limits
+# ---------------------------------------------------------------------------
+
+def _get_scoring_tokens() -> tuple[int, int]:
+    """Return (criterion, reasons) max_tokens from config.json with env fallback.
+
+    Reads from the persisted config file so UI changes take effect without
+    restarting the server. Falls back to env-var / default values when the key
+    is absent.
+    """
+    from app.config import load_config_file
+    stored = load_config_file()
+    return (
+        stored.get("scoring_max_tokens_criterion", settings.scoring_max_tokens_criterion),
+        stored.get("scoring_max_tokens_reasons", settings.scoring_max_tokens_reasons),
+    )
 
 # ---------------------------------------------------------------------------
 # Scoring criteria (name, key, weight_key, default_weight, factors)
@@ -139,11 +159,16 @@ def get_score_details(score: int) -> tuple[str, str, str]:
 # ---------------------------------------------------------------------------
 
 def _parse_int_score(response: str) -> int:
-    """Parse an integer score 0-100 from an LLM response string."""
-    try:
-        return max(0, min(100, int(str(response).strip())))
-    except Exception:
-        return 0
+    """Parse an integer score 0-100 from an LLM response string.
+
+    Extracts the first integer found anywhere in the response so that brief
+    model preambles like 'Score: 75' or trailing newlines don't cause a miss.
+    """
+    import re
+    match = re.search(r"\b(\d{1,3})\b", str(response))
+    if match:
+        return max(0, min(100, int(match.group(1))))
+    return 0
 
 
 async def extract_job_requirements(job_desc: str) -> dict[str, Any] | None:
@@ -198,19 +223,26 @@ async def _score_criterion(
     """Score a single criterion 0-100 using the LLM. Does not log resume content."""
     prompt = f"""Evaluate the candidate's resume for the criterion: "{name}".
 
+The resume is provided as structured JSON — infer information from any field
+regardless of key names or section labels (e.g. skills may appear under
+"technicalSkills", "skills", "additional", or elsewhere).
+
 Factors to consider: {', '.join(factors)}
 
 Job Requirements:
 {json.dumps(job_requirements, indent=2)}
 
-Apply negative selection: score 0 for a complete miss (e.g., required location mismatch, missing critical skill).
+Apply negative selection (score 0) only for hard disqualifiers such as an
+explicit location exclusion or a missing mandatory licence. For everything
+else, award partial credit proportional to the match.
 
-Resume:
+Resume (JSON):
 {resume_text}
 
 Return only an integer 0-100. Nothing else."""
     try:
-        response = await complete(prompt, max_tokens=10)
+        max_tokens_criterion, _ = _get_scoring_tokens()
+        response = await complete(prompt, max_tokens=max_tokens_criterion)
         return _parse_int_score(response)
     except Exception:
         logger.warning("LLM criterion scoring failed for criterion: %s", name)
@@ -228,7 +260,7 @@ async def _compute_ai_match(
     """
     job_requirements = await extract_job_requirements(job_desc)
     if not job_requirements:
-        return {"score": 0, "match_reasons": "", "website": "", "red_flags": {"🚩": [], "📍": [], "⛳": []}}
+        return {"score": 0, "match_reasons": "", "red_flags": {"🚩": [], "📍": [], "⛳": []}}
 
     emphasis = job_requirements.get("emphasis", {})
 
@@ -246,21 +278,15 @@ Job Requirements: {json.dumps(job_requirements, indent=2)}
 
 Output only the reasons string. No intro."""
 
-    website_prompt = f"""Extract the candidate's personal website URL from this resume.
-Output only the URL, or an empty string if none found.
-
-Resume: {resume_text}"""
-
+    _, max_tokens_reasons = _get_scoring_tokens()
     all_results = await asyncio.gather(
         *criterion_tasks,
-        complete(reasons_prompt, max_tokens=100),
-        complete(website_prompt, max_tokens=50),
+        complete(reasons_prompt, max_tokens=max_tokens_reasons),
         return_exceptions=True,
     )
 
     scores = all_results[:len(_CRITERIA)]
     reasons_raw = all_results[len(_CRITERIA)]
-    website_raw = all_results[len(_CRITERIA) + 1]
 
     red_flags: dict[str, list[str]] = {"🚩": [], "📍": [], "⛳": []}
     total_weight = 0.0
@@ -272,6 +298,9 @@ Resume: {resume_text}"""
 
         if isinstance(score, Exception):
             logger.warning("Criterion scoring raised exception for: %s", name)
+            score = 0
+        elif not isinstance(score, int):
+            logger.warning("Criterion scoring returned non-integer for: %s", name)
             score = 0
 
         if score < 10:
@@ -292,18 +321,9 @@ Resume: {resume_text}"""
     else:
         logger.warning("Match reasons LLM call failed")
 
-    website = ""
-    if isinstance(website_raw, str):
-        website = website_raw.strip()
-        if website.lower() in ("none", "n/a", ""):
-            website = ""
-    else:
-        logger.warning("Website extraction LLM call failed")
-
     return {
         "score": ai_score,
         "match_reasons": match_reasons,
-        "website": website,
         "red_flags": red_flags,
     }
 
@@ -367,7 +387,6 @@ async def score_resume(resume_id: str, job_id: str) -> dict[str, Any]:
         "ai_score": ai_result["score"],
         "match_reasons": ai_result["match_reasons"],
         "red_flags": ai_result["red_flags"],
-        "website": ai_result["website"],
         "label": label,
         "emoji": emoji,
         "color": color,

@@ -20,7 +20,6 @@ class ScoreResult(BaseModel):
     ai_score: int
     match_reasons: str
     red_flags: dict[str, list[str]]
-    website: str
     label: str
     emoji: str
     color: str

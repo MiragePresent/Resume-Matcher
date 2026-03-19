@@ -30,7 +30,7 @@ class TestScoresTable(unittest.TestCase):
             "ai_score": 82,
             "match_reasons": "good",
             "red_flags": {},
-            "website": "",
+            
             "label": "Good Fit",
             "emoji": "🌿",
             "color": "green",
@@ -51,7 +51,7 @@ class TestScoresTable(unittest.TestCase):
             "ai_score": 50,
             "match_reasons": "",
             "red_flags": {},
-            "website": "",
+            
             "label": "Gap",
             "emoji": "🐤",
             "color": "yellow",
@@ -64,11 +64,22 @@ class TestScoresTable(unittest.TestCase):
 
     def test_get_score_different_pair_is_miss(self) -> None:
         result = {"score": 70, "ai_score": 70, "match_reasons": "",
-                  "red_flags": {}, "website": "", "label": "ok",
+                  "red_flags": {}, "label": "ok",
                   "emoji": "x", "color": "yellow"}
         self.db.create_score("r1", "j1", result)
         self.assertIsNone(self.db.get_score("r1", "j2"))
         self.assertIsNone(self.db.get_score("r2", "j1"))
+
+    def test_delete_score_removes_record(self) -> None:
+        result = {"score": 60, "ai_score": 60, "match_reasons": "",
+                  "red_flags": {}, "label": "ok",
+                  "emoji": "x", "color": "yellow"}
+        self.db.create_score("r1", "j1", result)
+        self.assertTrue(self.db.delete_score("r1", "j1"))
+        self.assertIsNone(self.db.get_score("r1", "j1"))
+
+    def test_delete_score_returns_false_on_miss(self) -> None:
+        self.assertFalse(self.db.delete_score("r999", "j999"))
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +102,6 @@ class TestScoringSchemas(unittest.TestCase):
             ai_score=75,
             match_reasons="ok",
             red_flags={},
-            website="",
             label="Fair",
             emoji="🥝",
             color="green",
@@ -110,7 +120,6 @@ class TestScoringSchemas(unittest.TestCase):
             ai_score=60,
             match_reasons="",
             red_flags={},
-            website="",
             label="ok",
             emoji="x",
             color="yellow",
@@ -202,7 +211,6 @@ class TestScoreResume(unittest.IsolatedAsyncioTestCase):
             "ai_score": 77,
             "match_reasons": "good",
             "red_flags": {},
-            "website": "",
             "label": "ok",
             "emoji": "x",
             "color": "green",
@@ -258,14 +266,14 @@ class TestScoreResume(unittest.IsolatedAsyncioTestCase):
         saved_doc = {
             "score_id": "s1", "resume_id": "r1", "job_id": "j1",
             "score": 80, "ai_score": 80, "match_reasons": "good",
-            "red_flags": {}, "website": "", "label": "Good",
+            "red_flags": {}, "label": "Good",
             "emoji": "🍀", "color": "green", "created_at": "2026-01-01T00:00:00+00:00",
         }
         mock_db.create_score.return_value = saved_doc
 
         ai_result = {
             "score": 80, "match_reasons": "good | fit",
-            "red_flags": {"🚩": [], "📍": [], "⛳": []}, "website": "",
+            "red_flags": {"🚩": [], "📍": [], "⛳": []},
         }
         with (
             patch.object(scorer_module, "db", mock_db),
@@ -294,7 +302,6 @@ class TestScoringRouter(unittest.IsolatedAsyncioTestCase):
             "ai_score": 80,
             "match_reasons": "good",
             "red_flags": {},
-            "website": "",
             "label": "Good",
             "emoji": "🍀",
             "color": "green",
@@ -316,7 +323,6 @@ class TestScoringRouter(unittest.IsolatedAsyncioTestCase):
             "ai_score": 80,
             "match_reasons": "good",
             "red_flags": {},
-            "website": "",
             "label": "Good",
             "emoji": "🍀",
             "color": "green",
@@ -337,6 +343,24 @@ class TestScoringRouter(unittest.IsolatedAsyncioTestCase):
         with patch.object(scoring_router, "db", mock_db):
             with self.assertRaises(HTTPException) as ctx:
                 await scoring_router.get_score("r1", "j1")
+        self.assertEqual(ctx.exception.status_code, 404)
+
+    async def test_delete_score_success(self) -> None:
+        from app.routers import scoring as scoring_router
+        mock_db = MagicMock()
+        mock_db.delete_score.return_value = True
+        with patch.object(scoring_router, "db", mock_db):
+            result = await scoring_router.delete_score("r1", "j1")
+        self.assertIsNone(result)
+        mock_db.delete_score.assert_called_once_with("r1", "j1")
+
+    async def test_delete_score_raises_404_on_miss(self) -> None:
+        from app.routers import scoring as scoring_router
+        mock_db = MagicMock()
+        mock_db.delete_score.return_value = False
+        with patch.object(scoring_router, "db", mock_db):
+            with self.assertRaises(HTTPException) as ctx:
+                await scoring_router.delete_score("r1", "j1")
         self.assertEqual(ctx.exception.status_code, 404)
 
 
