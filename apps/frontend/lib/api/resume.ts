@@ -388,7 +388,6 @@ export interface ScoreResult {
   match_reasons: string;
   red_flags: Record<string, string[]>;
   label: string;
-  emoji: string;
   color: string;
   cached: boolean;
   created_at: string;

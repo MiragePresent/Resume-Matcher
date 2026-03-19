@@ -101,57 +101,57 @@ _CRITERIA: list[tuple[str, str, str, int, list[str]]] = [
 # Score label lookup
 # ---------------------------------------------------------------------------
 
-_SCORE_RANGES: list[tuple[int, int, str, str, str]] = [
-    (100, 101, "🦄", "rainbow", "Legendary Unicorn"),
-    (99,  100, "🏆", "gold",    "Dream Candidate"),
-    (98,   99, "🥇", "magenta", "Exceptional Fit"),
-    (97,   98, "🥈", "magenta", "Outstanding Candidate"),
-    (96,   97, "🥉", "magenta", "Superb Applicant"),
-    (95,   96, "🌟", "magenta", "Excellent Choice"),
-    (94,   95, "💫", "blue",    "Top Prospect"),
-    (93,   94, "🌠", "blue",    "Strong Contender"),
-    (92,   93, "✨", "blue",    "Impressive Talent"),
-    (91,   92, "🌊", "cyan",    "Highly Qualified"),
-    (90,   91, "💎", "cyan",    "Great Potential"),
-    (88,   90, "💎", "cyan",    "Very Promising"),
-    (86,   88, "🍀", "green",   "Solid Candidate"),
-    (84,   86, "🌿", "green",   "Good Fit"),
-    (82,   84, "🌴", "green",   "Suitable Match"),
-    (80,   82, "🌱", "green",   "Potential Hire"),
-    (78,   80, "🥑", "green",   "Possible Fit"),
-    (76,   78, "🥝", "green",   "Fair Prospect"),
-    (74,   76, "🥦", "green",   "Moderate Match"),
-    (72,   74, "🌻", "yellow",  "Average Candidate"),
-    (70,   72, "🌼", "yellow",  "Partial Fit"),
-    (68,   70, "🌟", "yellow",  "Limited Potential"),
-    (66,   68, "🍋", "yellow",  "Weak Match"),
-    (64,   66, "🍌", "yellow",  "Minimal Alignment"),
-    (62,   64, "🧀", "yellow",  "Low Compatibility"),
-    (60,   62, "🌽", "yellow",  "Needs Improvement"),
-    (58,   60, "🍯", "yellow",  "Considerable Gap"),
-    (56,   58, "🍍", "yellow",  "Poor Fit"),
-    (54,   56, "🍈", "yellow",  "Significant Mismatch"),
-    (52,   54, "🍏", "yellow",  "Major Differences"),
-    (50,   52, "🐤", "yellow",  "Substantial Gap"),
-    (45,   50, "🍊", "red",     "Unqualified Candidate"),
-    (40,   45, "🥕", "red",     "Mismatched Skills"),
-    (35,   40, "🦊", "red",     "Inadequate Fit"),
-    (30,   35, "🍎", "red",     "Unsuitable Applicant"),
-    (25,   30, "🍓", "red",     "Incompatible Match"),
-    (20,   25, "🍒", "red",     "Irrelevant Background"),
-    (15,   20, "🍅", "red",     "Completely Misaligned"),
-    (10,   15, "🌶️", "red",    "Wrong Field"),
-    (5,    10, "🎱", "black",   "Possibly Unsuitable"),
-    (0,     5, "🕷️", "black",  "No Match"),
+_SCORE_RANGES: list[tuple[int, int, str, str]] = [
+    (100, 101, "rainbow", "Legendary Unicorn"),
+    (99,  100, "gold",    "Dream Candidate"),
+    (98,   99, "magenta", "Exceptional Fit"),
+    (97,   98, "magenta", "Outstanding Candidate"),
+    (96,   97, "magenta", "Superb Applicant"),
+    (95,   96, "magenta", "Excellent Choice"),
+    (94,   95, "blue",    "Top Prospect"),
+    (93,   94, "blue",    "Strong Contender"),
+    (92,   93, "blue",    "Impressive Talent"),
+    (91,   92, "cyan",    "Highly Qualified"),
+    (90,   91, "cyan",    "Great Potential"),
+    (88,   90, "cyan",    "Very Promising"),
+    (86,   88, "green",   "Solid Candidate"),
+    (84,   86, "green",   "Good Fit"),
+    (82,   84, "green",   "Suitable Match"),
+    (80,   82, "green",   "Potential Hire"),
+    (78,   80, "green",   "Possible Fit"),
+    (76,   78, "green",   "Fair Prospect"),
+    (74,   76, "green",   "Moderate Match"),
+    (72,   74, "yellow",  "Average Candidate"),
+    (70,   72, "yellow",  "Partial Fit"),
+    (68,   70, "yellow",  "Limited Potential"),
+    (66,   68, "yellow",  "Weak Match"),
+    (64,   66, "yellow",  "Minimal Alignment"),
+    (62,   64, "yellow",  "Low Compatibility"),
+    (60,   62, "yellow",  "Needs Improvement"),
+    (58,   60, "yellow",  "Considerable Gap"),
+    (56,   58, "yellow",  "Poor Fit"),
+    (54,   56, "yellow",  "Significant Mismatch"),
+    (52,   54, "yellow",  "Major Differences"),
+    (50,   52, "yellow",  "Substantial Gap"),
+    (45,   50, "red",     "Unqualified Candidate"),
+    (40,   45, "red",     "Mismatched Skills"),
+    (35,   40, "red",     "Inadequate Fit"),
+    (30,   35, "red",     "Unsuitable Applicant"),
+    (25,   30, "red",     "Incompatible Match"),
+    (20,   25, "red",     "Irrelevant Background"),
+    (15,   20, "red",     "Completely Misaligned"),
+    (10,   15, "red",     "Wrong Field"),
+    (5,    10, "black",   "Possibly Unsuitable"),
+    (0,     5, "black",   "No Match"),
 ]
 
 
-def get_score_details(score: int) -> tuple[str, str, str]:
-    """Map a 0-100 score to (emoji, color, label)."""
-    for lo, hi, emoji, color, label in _SCORE_RANGES:
+def get_score_details(score: int) -> tuple[str, str]:
+    """Map a 0-100 score to (color, label)."""
+    for lo, hi, color, label in _SCORE_RANGES:
         if lo <= score < hi:
-            return emoji, color, label
-    return "💀", "red", "Unable to score"
+            return color, label
+    return "red", "Unable to score"
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +260,11 @@ async def _compute_ai_match(
     """
     job_requirements = await extract_job_requirements(job_desc)
     if not job_requirements:
-        return {"score": 0, "match_reasons": "", "red_flags": {"🚩": [], "📍": [], "⛳": []}}
+        return {
+            "score": 0,
+            "match_reasons": "",
+            "red_flags": {"critical": [], "major": [], "minor": []},
+        }
 
     emphasis = job_requirements.get("emphasis", {})
 
@@ -288,7 +292,7 @@ Output only the reasons string. No intro."""
     scores = all_results[:len(_CRITERIA)]
     reasons_raw = all_results[len(_CRITERIA)]
 
-    red_flags: dict[str, list[str]] = {"🚩": [], "📍": [], "⛳": []}
+    red_flags: dict[str, list[str]] = {"critical": [], "major": [], "minor": []}
     total_weight = 0.0
     total_score = 0.0
 
@@ -305,11 +309,11 @@ Output only the reasons string. No intro."""
 
         if score < 10:
             if weight >= 30:
-                red_flags["🚩"].append(name)
+                red_flags["critical"].append(name)
             elif weight >= 20:
-                red_flags["📍"].append(name)
+                red_flags["major"].append(name)
             else:
-                red_flags["⛳"].append(name)
+                red_flags["minor"].append(name)
 
         total_score += (score * weight) / 100
 
@@ -380,7 +384,7 @@ async def score_resume(resume_id: str, job_id: str) -> dict[str, Any]:
         )
 
     final_score = max(0, min(100, ai_result["score"]))
-    emoji, color, label = get_score_details(final_score)
+    color, label = get_score_details(final_score)
 
     result = {
         "score": final_score,
@@ -388,7 +392,6 @@ async def score_resume(resume_id: str, job_id: str) -> dict[str, Any]:
         "match_reasons": ai_result["match_reasons"],
         "red_flags": ai_result["red_flags"],
         "label": label,
-        "emoji": emoji,
         "color": color,
     }
 

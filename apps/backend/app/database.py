@@ -304,7 +304,6 @@ class Database:
             "match_reasons": result.get("match_reasons", ""),
             "red_flags": result.get("red_flags", {}),
             "label": result.get("label", ""),
-            "emoji": result.get("emoji", ""),
             "color": result.get("color", ""),
             "created_at": now,
         }

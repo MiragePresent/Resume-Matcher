@@ -21,7 +21,6 @@ class ScoreResult(BaseModel):
     match_reasons: str
     red_flags: dict[str, list[str]]
     label: str
-    emoji: str
     color: str
     cached: bool
     created_at: str

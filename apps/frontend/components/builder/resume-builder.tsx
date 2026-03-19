@@ -785,7 +785,6 @@ const ResumeBuilderContent = () => {
                       </div>
                       <div className="px-4 py-3 space-y-2">
                         <div className="flex items-center gap-3">
-                          <span className="text-2xl leading-none">{score.emoji}</span>
                           <span className="font-mono text-3xl font-bold leading-none">
                             {score.score}
                           </span>

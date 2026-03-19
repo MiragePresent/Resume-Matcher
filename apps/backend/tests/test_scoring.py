@@ -30,9 +30,7 @@ class TestScoresTable(unittest.TestCase):
             "ai_score": 82,
             "match_reasons": "good",
             "red_flags": {},
-            
             "label": "Good Fit",
-            "emoji": "🌿",
             "color": "green",
         }
         doc = self.db.create_score("r1", "j1", result)
@@ -51,9 +49,7 @@ class TestScoresTable(unittest.TestCase):
             "ai_score": 50,
             "match_reasons": "",
             "red_flags": {},
-            
             "label": "Gap",
-            "emoji": "🐤",
             "color": "yellow",
         }
         self.db.create_score("r1", "j1", result)
@@ -65,7 +61,7 @@ class TestScoresTable(unittest.TestCase):
     def test_get_score_different_pair_is_miss(self) -> None:
         result = {"score": 70, "ai_score": 70, "match_reasons": "",
                   "red_flags": {}, "label": "ok",
-                  "emoji": "x", "color": "yellow"}
+                  "color": "yellow"}
         self.db.create_score("r1", "j1", result)
         self.assertIsNone(self.db.get_score("r1", "j2"))
         self.assertIsNone(self.db.get_score("r2", "j1"))
@@ -73,7 +69,7 @@ class TestScoresTable(unittest.TestCase):
     def test_delete_score_removes_record(self) -> None:
         result = {"score": 60, "ai_score": 60, "match_reasons": "",
                   "red_flags": {}, "label": "ok",
-                  "emoji": "x", "color": "yellow"}
+                  "color": "yellow"}
         self.db.create_score("r1", "j1", result)
         self.assertTrue(self.db.delete_score("r1", "j1"))
         self.assertIsNone(self.db.get_score("r1", "j1"))
@@ -103,7 +99,6 @@ class TestScoringSchemas(unittest.TestCase):
             match_reasons="ok",
             red_flags={},
             label="Fair",
-            emoji="🥝",
             color="green",
             cached=False,
             created_at="2026-01-01T00:00:00+00:00",
@@ -121,7 +116,6 @@ class TestScoringSchemas(unittest.TestCase):
             match_reasons="",
             red_flags={},
             label="ok",
-            emoji="x",
             color="yellow",
             cached=True,
             created_at="2026-01-01T00:00:00+00:00",
@@ -137,32 +131,32 @@ class TestScoringSchemas(unittest.TestCase):
 class TestGetScoreDetails(unittest.TestCase):
     def test_perfect_score(self) -> None:
         from app.services.scorer import get_score_details
-        emoji, color, label = get_score_details(100)
+        color, label = get_score_details(100)
         self.assertEqual(label, "Legendary Unicorn")
 
     def test_zero_score(self) -> None:
         from app.services.scorer import get_score_details
-        emoji, color, label = get_score_details(0)
+        color, label = get_score_details(0)
         self.assertEqual(color, "black")
 
     def test_low_score(self) -> None:
         from app.services.scorer import get_score_details
-        emoji, color, label = get_score_details(3)
+        color, label = get_score_details(3)
         self.assertEqual(color, "black")
 
     def test_boundary_82(self) -> None:
         from app.services.scorer import get_score_details
-        _, _, label = get_score_details(82)
+        _, label = get_score_details(82)
         self.assertEqual(label, "Suitable Match")
 
     def test_mid_range(self) -> None:
         from app.services.scorer import get_score_details
-        _, color, _ = get_score_details(85)
+        color, _ = get_score_details(85)
         self.assertEqual(color, "green")
 
     def test_score_clamped_above_100_returns_legendary(self) -> None:
         from app.services.scorer import get_score_details
-        _, _, label = get_score_details(100)
+        _, label = get_score_details(100)
         self.assertEqual(label, "Legendary Unicorn")
 
 
@@ -180,6 +174,8 @@ class TestExtractJobRequirements(unittest.IsolatedAsyncioTestCase):
         }
         with patch.object(scorer_module, "complete_json", AsyncMock(return_value=mock_result)):
             result = await scorer_module.extract_job_requirements("Job desc text")
+        if result is None:
+            self.fail("Expected parsed job requirements, got None")
         self.assertEqual(result["required_skills"], ["Python"])
 
     async def test_returns_none_on_llm_failure(self) -> None:
@@ -212,7 +208,6 @@ class TestScoreResume(unittest.IsolatedAsyncioTestCase):
             "match_reasons": "good",
             "red_flags": {},
             "label": "ok",
-            "emoji": "x",
             "color": "green",
             "cached": True,
             "created_at": "2026-01-01T00:00:00+00:00",
@@ -267,13 +262,13 @@ class TestScoreResume(unittest.IsolatedAsyncioTestCase):
             "score_id": "s1", "resume_id": "r1", "job_id": "j1",
             "score": 80, "ai_score": 80, "match_reasons": "good",
             "red_flags": {}, "label": "Good",
-            "emoji": "🍀", "color": "green", "created_at": "2026-01-01T00:00:00+00:00",
+            "color": "green", "created_at": "2026-01-01T00:00:00+00:00",
         }
         mock_db.create_score.return_value = saved_doc
 
         ai_result = {
             "score": 80, "match_reasons": "good | fit",
-            "red_flags": {"🚩": [], "📍": [], "⛳": []},
+            "red_flags": {"critical": [], "major": [], "minor": []},
         }
         with (
             patch.object(scorer_module, "db", mock_db),
@@ -303,7 +298,6 @@ class TestScoringRouter(unittest.IsolatedAsyncioTestCase):
             "match_reasons": "good",
             "red_flags": {},
             "label": "Good",
-            "emoji": "🍀",
             "color": "green",
             "cached": False,
             "created_at": "2026-01-01T00:00:00+00:00",
@@ -324,7 +318,6 @@ class TestScoringRouter(unittest.IsolatedAsyncioTestCase):
             "match_reasons": "good",
             "red_flags": {},
             "label": "Good",
-            "emoji": "🍀",
             "color": "green",
             "cached": True,
             "created_at": "2026-01-01T00:00:00+00:00",
