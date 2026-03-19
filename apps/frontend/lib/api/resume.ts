@@ -137,11 +137,15 @@ async function postImprove(
 /** Uploads job descriptions and returns a job_id */
 export async function uploadJobDescriptions(
   descriptions: string[],
-  resumeId: string
+  resumeId: string,
+  meta?: { company?: string; title?: string; url?: string }
 ): Promise<string> {
   const res = await apiPost('/jobs/upload', {
     job_descriptions: descriptions,
     resume_id: resumeId,
+    ...(meta?.company ? { company: meta.company } : {}),
+    ...(meta?.title ? { title: meta.title } : {}),
+    ...(meta?.url ? { url: meta.url } : {}),
   });
   if (!res.ok) throw new Error(`Upload failed with status ${res.status}`);
   const data = await res.json();
@@ -371,6 +375,34 @@ export async function fetchJobDescription(
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`Failed to fetch job description (status ${res.status}): ${text}`);
+  }
+  return res.json();
+}
+
+export interface ScoreResult {
+  score_id: string;
+  resume_id: string;
+  job_id: string;
+  score: number;
+  ai_score: number;
+  match_reasons: string;
+  red_flags: Record<string, string[]>;
+  label: string;
+  emoji: string;
+  color: string;
+  cached: boolean;
+  created_at: string;
+}
+
+/** Fetches a cached score for a resume-job pair. Returns null if not scored yet. */
+export async function fetchScore(resumeId: string, jobId: string): Promise<ScoreResult | null> {
+  const res = await apiFetch(
+    `/scores/${encodeURIComponent(resumeId)}/${encodeURIComponent(jobId)}`
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Failed to fetch score (status ${res.status}): ${text}`);
   }
   return res.json();
 }
