@@ -39,8 +39,6 @@ import {
   generateCoverLetter,
   generateOutreachMessage,
   fetchJobDescription,
-  fetchScore,
-  type ScoreResult,
 } from '@/lib/api/resume';
 import { JDComparisonView } from './jd-comparison-view';
 import { RegenerateWizard } from './regenerate-wizard';
@@ -157,10 +155,6 @@ const ResumeBuilderContent = () => {
 
   // JD comparison state
   const [jobDescription, setJobDescription] = useState<string | null>(null);
-  const [jobId, setJobId] = useState<string | null>(null);
-
-  // Score state
-  const [score, setScore] = useState<ScoreResult | null>(null);
 
   // AI Regenerate wizard
   const regenerateWizard = useRegenerateWizard({
@@ -376,20 +370,17 @@ const ResumeBuilderContent = () => {
           const data = await fetchJobDescription(resumeId);
           if (!cancelled) {
             setJobDescription(data.content);
-            setJobId(data.job_id);
           }
         } catch (err) {
           // JD might not be available for older resumes
           if (!cancelled) {
             console.warn('Could not fetch job description:', err);
             setJobDescription(null);
-            setJobId(null);
           }
         }
       } else {
         // Clear job description when switching to non-tailored resume
         setJobDescription(null);
-        setJobId(null);
       }
     };
 
@@ -398,19 +389,6 @@ const ResumeBuilderContent = () => {
       cancelled = true;
     };
   }, [isTailoredResume, resumeId]);
-
-  // Fetch cached score when resume+job are known
-  useEffect(() => {
-    let cancelled = false;
-    if (!resumeId || !jobId) {
-      setScore(null);
-      return;
-    }
-    fetchScore(resumeId, jobId)
-      .then((result) => { if (!cancelled) setScore(result); })
-      .catch(() => { if (!cancelled) setScore(null); });
-    return () => { cancelled = true; };
-  }, [resumeId, jobId]);
 
   const handleUpdate = useCallback((newData: ResumeData) => {
     setResumeData(newData);
@@ -775,40 +753,6 @@ const ResumeBuilderContent = () => {
               {activeTab === 'resume' && (
                 <>
                   <FormattingControls settings={templateSettings} onChange={handleSettingsChange} />
-                  {score && (
-                    <div className="border-2 border-black bg-white">
-                      <div className="flex items-center justify-between px-4 py-2 border-b border-black">
-                        <span className="font-mono text-xs font-bold uppercase tracking-wider">
-                          Match Score
-                        </span>
-                        <span className="font-mono text-xs text-gray-500">{score.label}</span>
-                      </div>
-                      <div className="px-4 py-3 space-y-2">
-                        <div className="flex items-center gap-3">
-                          <span className="font-mono text-3xl font-bold leading-none">
-                            {score.score}
-                          </span>
-                          <span className="font-mono text-sm text-gray-500">/ 100</span>
-                        </div>
-                        {score.match_reasons && (
-                          <p className="text-xs text-gray-700 leading-relaxed border-t border-gray-200 pt-2">
-                            {score.match_reasons}
-                          </p>
-                        )}
-                        {Object.entries(score.red_flags).some(([, v]) => v.length > 0) && (
-                          <div className="border-t border-gray-200 pt-2 space-y-1">
-                            {Object.entries(score.red_flags).map(([flag, items]) =>
-                              items.length > 0 ? (
-                                <p key={flag} className="text-xs text-gray-600">
-                                  {flag} {items.join(', ')}
-                                </p>
-                              ) : null
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
                   <ResumeForm resumeData={resumeData} onUpdate={handleUpdate} />
                 </>
               )}
