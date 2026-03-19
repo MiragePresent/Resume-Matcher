@@ -47,6 +47,11 @@ class Database:
         """Improvement results table."""
         return self.db.table("improvements")
 
+    @property
+    def scores(self) -> Table:
+        """Resume-job match score cache table."""
+        return self.db.table("scores")
+
     def close(self) -> None:
         """Close database connection."""
         if self._db is not None:
@@ -263,6 +268,41 @@ class Database:
         Improvement = Query()
         result = self.improvements.search(
             Improvement.tailored_resume_id == tailored_resume_id
+        )
+        return result[0] if result else None
+
+    # Score operations
+    def create_score(
+        self,
+        resume_id: str,
+        job_id: str,
+        result: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Persist a scoring result for a resume-job pair."""
+        score_id = str(uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        doc: dict[str, Any] = {
+            "score_id": score_id,
+            "resume_id": resume_id,
+            "job_id": job_id,
+            "score": result.get("score", 0),
+            "ai_score": result.get("ai_score", 0),
+            "match_reasons": result.get("match_reasons", ""),
+            "red_flags": result.get("red_flags", {}),
+            "website": result.get("website", ""),
+            "label": result.get("label", ""),
+            "emoji": result.get("emoji", ""),
+            "color": result.get("color", ""),
+            "created_at": now,
+        }
+        self.scores.insert(doc)
+        return doc
+
+    def get_score(self, resume_id: str, job_id: str) -> dict[str, Any] | None:
+        """Return the cached score for a resume-job pair, or None on miss."""
+        Score = Query()
+        result = self.scores.search(
+            (Score.resume_id == resume_id) & (Score.job_id == job_id)
         )
         return result[0] if result else None
 

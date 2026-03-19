@@ -1,0 +1,36 @@
+"""Resume scoring endpoints."""
+
+import logging
+
+from fastapi import APIRouter, HTTPException
+
+from app.database import db
+from app.schemas.scoring import ScoreRequest, ScoreResult
+from app.services.scorer import score_resume
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/scores", tags=["Scoring"])
+
+
+@router.post("", response_model=ScoreResult)
+async def create_score(request: ScoreRequest) -> ScoreResult:
+    """Score a resume against a job description.
+
+    Returns a cached result immediately if one exists for this resume-job pair.
+    Otherwise runs the LLM scoring pipeline and caches the result.
+    """
+    result = await score_resume(request.resume_id, request.job_id)
+    return ScoreResult(**result)
+
+
+@router.get("/{resume_id}/{job_id}", response_model=ScoreResult)
+async def get_score(resume_id: str, job_id: str) -> ScoreResult:
+    """Retrieve a cached score for a resume-job pair.
+
+    Returns 404 if no score has been computed for this pair yet.
+    """
+    cached = db.get_score(resume_id, job_id)
+    if not cached:
+        raise HTTPException(status_code=404, detail="Score not found.")
+    return ScoreResult(**{**cached, "cached": True})
