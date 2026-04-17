@@ -38,7 +38,7 @@ export const API_BASE = resolveRuntimeApiBase(toApiBase(API_URL));
  *
  * @param endpoint - API endpoint path or absolute URL
  * @param options - Standard RequestInit options
- * @param timeoutMs - Optional request timeout in milliseconds
+ * @param timeoutMs - Optional request timeout in milliseconds (default: 480_000)
  */
 export async function apiFetch(
   endpoint: string,
@@ -56,12 +56,10 @@ export async function apiFetch(
     url = resolveRuntimeApiBase(normalizedEndpoint);
   }
 
-  if (timeoutMs == null) {
-    return fetch(url, options);
-  }
+  const timeout = timeoutMs ?? 480_000;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeout);
 
   try {
     return await fetch(url, { ...options, signal: controller.signal });

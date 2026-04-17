@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   experimental: {
     turbopackUseSystemTlsCerts: true,
+    proxyTimeout: 480_000,
     // Tree-shake barrel imports — saves ~200-800ms cold start per route
     optimizePackageImports: [
       'lucide-react',

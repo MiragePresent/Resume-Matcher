@@ -25,6 +25,11 @@ def _configure_litellm_logging() -> None:
 
 _configure_litellm_logging()
 
+# LLM timeout configuration (seconds)
+LLM_TIMEOUT_HEALTH_CHECK = 480
+LLM_TIMEOUT_COMPLETION = 480
+LLM_TIMEOUT_JSON = 480
+
 # JSON-010: JSON extraction safety limits
 MAX_JSON_EXTRACTION_RECURSION = 10
 MAX_JSON_CONTENT_SIZE = 1024 * 1024  # 1MB
@@ -428,6 +433,7 @@ async def check_llm_health(
             "max_tokens": 16,
             "api_key": config.api_key,
             "api_base": _normalize_api_base(config.provider, config.api_base),
+            "timeout": LLM_TIMEOUT_HEALTH_CHECK,
         }
         reasoning_effort = _get_reasoning_effort(config.provider, model_name)
         if reasoning_effort:
@@ -523,6 +529,7 @@ async def complete(
             "model": "primary",
             "messages": messages,
             "max_tokens": max_tokens,
+            "timeout": LLM_TIMEOUT_COMPLETION,
         }
         if _supports_temperature(config.provider, model_name):
             kwargs["temperature"] = temperature
@@ -750,6 +757,7 @@ async def complete_json(
                 "model": "primary",
                 "messages": messages,
                 "max_tokens": max_tokens,
+                "timeout": LLM_TIMEOUT_JSON,
             }
             if _supports_temperature(config.provider, model_name):
                 # LLM-002: Increase temperature on retry for variation
