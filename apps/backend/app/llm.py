@@ -71,10 +71,9 @@ def _normalize_api_base(provider: str, api_base: str | None) -> str | None:
     if provider == "gemini" and base.endswith("/v1"):
         base = base[: -len("/v1")].rstrip("/")
 
-    # OpenRouter base is https://openrouter.ai/api/v1. LiteLLM appends /v1
-    # internally, so strip it to avoid /v1/v1.
-    if provider == "openrouter" and base.endswith("/v1"):
-        base = base[: -len("/v1")].rstrip("/")
+    # OpenRouter expects /api/v1 for chat/completions requests.
+    # Keep user-provided /v1 intact to avoid routing to HTML endpoints
+    # like /api/chat/completions.
 
     # Ollama doesn't use /v1 paths. Strip common suffixes users might paste:
     # /v1, /api/chat, /api/generate
@@ -282,8 +281,14 @@ def get_model_name(config: LLMConfig) -> str:
         return f"openrouter/{config.model}"
 
     # For other providers, don't add prefix if model already has a known prefix
-    known_prefixes = ["openrouter/", "anthropic/",
-                      "gemini/", "deepseek/", "ollama/", "ollama_chat/"]
+    known_prefixes = [
+        "openrouter/",
+        "anthropic/",
+        "gemini/",
+        "deepseek/",
+        "ollama/",
+        "ollama_chat/",
+    ]
     if any(config.model.startswith(p) for p in known_prefixes):
         return config.model
 
@@ -362,7 +367,9 @@ def get_router(config: LLMConfig | None = None) -> tuple[Router, LLMConfig]:
         if _router is None or _router_config_key != key:
             _router = _build_router(config)
             _router_config_key = key
-            logging.info("LiteLLM Router rebuilt for %s/%s", config.provider, config.model)
+            logging.info(
+                "LiteLLM Router rebuilt for %s/%s", config.provider, config.model
+            )
         router = _router
 
     return router, config
@@ -438,7 +445,8 @@ async def check_llm_health(
             # Check if the model responded with reasoning/thinking content
             message = response.choices[0].message
             has_reasoning = getattr(message, "reasoning_content", None) or getattr(
-                message, "thinking", None)
+                message, "thinking", None
+            )
             if not has_reasoning:
                 # LLM-003: Empty response should mark health check as unhealthy
                 logging.warning(
@@ -542,8 +550,7 @@ async def complete(
         return content
     except Exception as e:
         # Log the actual error server-side for debugging
-        logging.error(f"LLM completion failed: {e}", extra={
-                      "model": model_name})
+        logging.error(f"LLM completion failed: {e}", extra={"model": model_name})
         raise ValueError(
             "LLM completion failed. Please check your API configuration and try again."
         ) from e
@@ -577,7 +584,9 @@ def _supports_json_mode(model_name: str) -> bool:
         # mode (the system prompt already instructs "respond with valid JSON
         # only"). This avoids sending response_format to models that may
         # reject it.
-        logging.debug("Model %s not in LiteLLM registry, skipping JSON mode", model_name)
+        logging.debug(
+            "Model %s not in LiteLLM registry, skipping JSON mode", model_name
+        )
         return False
 
 
@@ -669,11 +678,9 @@ def _extract_json(content: str, _depth: int = 0) -> str:
     """
     # JSON-010: Safety limits
     if _depth > MAX_JSON_EXTRACTION_RECURSION:
-        raise ValueError(
-            f"JSON extraction exceeded max recursion depth: {_depth}")
+        raise ValueError(f"JSON extraction exceeded max recursion depth: {_depth}")
     if len(content) > MAX_JSON_CONTENT_SIZE:
-        raise ValueError(
-            f"Content too large for JSON extraction: {len(content)} bytes")
+        raise ValueError(f"Content too large for JSON extraction: {len(content)} bytes")
 
     original = content
 
@@ -784,8 +791,7 @@ async def complete_json(
             if _supports_temperature(config.provider, model_name):
                 # LLM-002: Increase temperature on retry for variation
                 kwargs["temperature"] = _get_retry_temperature(attempt)
-            reasoning_effort = _get_reasoning_effort(
-                config.provider, model_name)
+            reasoning_effort = _get_reasoning_effort(config.provider, model_name)
             if reasoning_effort:
                 kwargs["reasoning_effort"] = reasoning_effort
 
@@ -799,8 +805,7 @@ async def complete_json(
             if not content:
                 raise ValueError("Empty response from LLM")
 
-            logging.debug(
-                f"LLM response (attempt {attempt + 1}): {content[:300]}")
+            logging.debug(f"LLM response (attempt {attempt + 1}): {content[:300]}")
 
             # Extract and parse JSON
             json_str = _extract_json(content)
@@ -834,8 +839,7 @@ async def complete_json(
                     + "\n\nIMPORTANT: Output ONLY a valid JSON object. Start with { and end with }."
                 )
                 continue
-            raise ValueError(
-                f"Failed to parse JSON after {retries + 1} attempts: {e}")
+            raise ValueError(f"Failed to parse JSON after {retries + 1} attempts: {e}")
 
         except ValueError as e:
             # Content quality — empty response, JSON extraction failure
