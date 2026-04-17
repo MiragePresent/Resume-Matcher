@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { AlertTriangle, CheckCircle, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { AlertTriangle, CheckCircle, X, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useTranslations } from '@/lib/i18n';
@@ -12,6 +12,7 @@ import type {
 
 interface DiffPreviewModalProps {
   isOpen: boolean;
+  isConfirming?: boolean;
   onClose: () => void;
   onReject: () => void;
   onConfirm: () => void;
@@ -22,6 +23,7 @@ interface DiffPreviewModalProps {
 
 export function DiffPreviewModal({
   isOpen,
+  isConfirming = false,
   onClose,
   onReject,
   onConfirm,
@@ -34,24 +36,41 @@ export function DiffPreviewModal({
     new Set(['summary', 'skills', 'descriptions', 'experience'])
   );
 
+  // Elapsed timer while confirming
+  const [elapsed, setElapsed] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (isConfirming) {
+      setElapsed(0);
+      intervalRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      setElapsed(0);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isConfirming]);
+
   if (!diffSummary || !detailedChanges) {
     return (
       <Dialog
         open={isOpen}
         onOpenChange={(open) => {
-          if (!open) {
+          if (!open && !isConfirming) {
             onClose();
           }
         }}
       >
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-6 bg-[#F0F0E8] border-2 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)]">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-6 bg-background border-2 border-black shadow-sw-lg">
           <DialogHeader className="border-b-2 border-black pb-4 bg-white -mx-6 -mt-6 px-6 pt-6">
             <DialogTitle className="font-serif text-2xl font-bold uppercase tracking-tight">
               {t('tailor.missingDiffDialog.title')}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="mt-6 border-2 border-black bg-white p-4 font-mono text-xs text-gray-700">
+          <div className="mt-6 border-2 border-black bg-white p-4 font-mono text-xs text-ink-soft">
             {t('tailor.missingDiffDialog.description')}
           </div>
           <div className="mt-3 flex items-center gap-2 font-mono text-xs text-amber-700">
@@ -60,11 +79,18 @@ export function DiffPreviewModal({
           </div>
 
           <div className="flex justify-end items-center gap-3 pt-4 border-t-2 border-black bg-white -mx-6 -mb-6 px-6 py-4">
-            <Button variant="outline" onClick={onClose} className="gap-2">
+            <Button variant="outline" onClick={onClose} disabled={isConfirming} className="gap-2">
               {t('common.cancel')}
             </Button>
-            <Button variant="warning" onClick={onConfirm} className="gap-2">
-              {t('tailor.missingDiffDialog.confirmLabel')}
+            <Button variant="warning" onClick={onConfirm} disabled={isConfirming} className="gap-2">
+              {isConfirming ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {t('common.saving')}
+                </>
+              ) : (
+                t('tailor.missingDiffDialog.confirmLabel')
+              )}
             </Button>
           </div>
         </DialogContent>
@@ -95,17 +121,17 @@ export function DiffPreviewModal({
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
-        if (!open) {
+        if (!open && !isConfirming) {
           onClose();
         }
       }}
     >
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-6 bg-[#F0F0E8] border-2 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)]">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-6 bg-background border-2 border-black shadow-sw-lg">
         <DialogHeader className="border-b-2 border-black pb-4 bg-white -mx-6 -mt-6 px-6 pt-6">
           <DialogTitle className="font-serif text-2xl font-bold uppercase tracking-tight">
             {t('tailor.diffModal.title')}
           </DialogTitle>
-          <p className="font-mono text-xs text-gray-600 mt-2">
+          <p className="font-mono text-xs text-ink-soft mt-2">
             {'// '}
             {t('tailor.diffModal.subtitle')}
           </p>
@@ -114,7 +140,7 @@ export function DiffPreviewModal({
         {/* Summary cards */}
         <div className="border-2 border-black bg-white p-4 mt-4">
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-3 h-3 bg-[#1D4ED8]"></div>
+            <div className="w-3 h-3 bg-primary"></div>
             <h3 className="font-mono text-sm font-bold uppercase tracking-wider">
               {t('tailor.diffModal.summary')}
             </h3>
@@ -149,8 +175,8 @@ export function DiffPreviewModal({
           </div>
 
           {diffSummary.high_risk_changes > 0 && (
-            <div className="mt-4 border-2 border-[#F97316] bg-[#FFF7ED] p-3 flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-[#F97316] shrink-0 mt-0.5" />
+            <div className="mt-4 border-2 border-warning bg-[#FFF7ED] p-3 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
               <div>
                 <p className="font-mono text-xs font-bold uppercase text-[#C2410C]">
                   {t('tailor.diffModal.warningTitle', {
@@ -274,14 +300,32 @@ export function DiffPreviewModal({
 
         {/* Action buttons */}
         <div className="flex justify-between items-center pt-4 border-t-2 border-black bg-white -mx-6 -mb-6 px-6 py-4">
-          <Button variant="outline" onClick={onReject} className="gap-2">
+          <Button variant="outline" onClick={onReject} disabled={isConfirming} className="gap-2">
             <X className="w-4 h-4" />
             {t('tailor.diffModal.rejectButton')}
           </Button>
-          <Button onClick={onConfirm} className="gap-2 bg-[#15803D] hover:bg-[#166534]">
-            <CheckCircle className="w-4 h-4" />
-            {t('tailor.diffModal.confirmButton')}
-          </Button>
+          <div className="flex items-center gap-3">
+            {isConfirming && elapsed > 0 && (
+              <span className="font-mono text-xs text-steel-grey">{elapsed}s</span>
+            )}
+            <Button
+              onClick={onConfirm}
+              disabled={isConfirming}
+              className="gap-2 bg-success hover:bg-green-800"
+            >
+              {isConfirming ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {t('common.saving')}
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  {t('tailor.diffModal.confirmButton')}
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -297,10 +341,10 @@ interface StatCardProps {
 
 function StatCard({ label, value, variant }: StatCardProps) {
   const colors = {
-    success: 'border-[#15803D] bg-[#F0FDF4] text-[#15803D]',
-    warning: 'border-[#F97316] bg-[#FFF7ED] text-[#F97316]',
-    danger: 'border-[#DC2626] bg-[#FEF2F2] text-[#DC2626]',
-    info: 'border-[#1D4ED8] bg-[#EFF6FF] text-[#1D4ED8]',
+    success: 'border-success bg-[#F0FDF4] text-success',
+    warning: 'border-warning bg-[#FFF7ED] text-warning',
+    danger: 'border-destructive bg-[#FEF2F2] text-destructive',
+    info: 'border-primary bg-[#EFF6FF] text-primary',
   };
 
   return (
@@ -325,7 +369,7 @@ function ChangeSection({ title, count, isExpanded, onToggle, children }: ChangeS
     <div className="border-2 border-black bg-white">
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between p-3 hover:bg-gray-50"
+        className="w-full flex items-center justify-between p-3 hover:bg-paper-tint"
       >
         <div className="flex items-center gap-2">
           {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -346,10 +390,20 @@ interface ChangeItemProps {
 }
 
 function ChangeItem({ change }: ChangeItemProps) {
-  const typeColors = {
-    added: 'border-l-4 border-[#15803D] bg-[#F0FDF4]',
-    removed: 'border-l-4 border-[#DC2626] bg-[#FEF2F2]',
-    modified: 'border-l-4 border-[#1D4ED8] bg-[#EFF6FF]',
+  // Background tint + leading glyph instead of left-stripe borders.
+  // Side-stripe borders are an impeccable absolute_ban (BAN 1) — the most
+  // overused dashboard "design touch". The leading +/-/~ glyph carries the
+  // semantic load and the bg tint reinforces it.
+  const typeBackgrounds = {
+    added: 'bg-[#F0FDF4]',
+    removed: 'bg-[#FEF2F2]',
+    modified: 'bg-[#EFF6FF]',
+  };
+
+  const typeGlyphColors = {
+    added: 'text-success',
+    removed: 'text-destructive',
+    modified: 'text-primary',
   };
 
   const typeLabels = {
@@ -359,23 +413,26 @@ function ChangeItem({ change }: ChangeItemProps) {
   };
 
   return (
-    <div className={`p-3 ${typeColors[change.change_type]}`}>
+    <div className={`p-3 border border-black ${typeBackgrounds[change.change_type]}`}>
       <div className="flex items-start gap-2">
-        <span className="font-mono text-xs font-bold uppercase tracking-wider text-gray-500">
+        <span
+          className={`font-mono text-base font-bold uppercase tracking-wider ${typeGlyphColors[change.change_type]}`}
+          aria-hidden="true"
+        >
           {typeLabels[change.change_type]}
         </span>
         <div className="flex-1">
           {change.original_value && (
-            <div className="line-through text-[#DC2626] font-mono text-sm mb-1">
+            <div className="line-through text-destructive font-mono text-sm mb-1">
               {change.original_value}
             </div>
           )}
           {change.new_value && (
-            <div className="text-gray-900 font-mono text-sm">{change.new_value}</div>
+            <div className="text-ink-soft font-mono text-sm">{change.new_value}</div>
           )}
         </div>
         {change.change_type === 'added' && change.confidence === 'high' && (
-          <AlertTriangle className="w-4 h-4 text-[#F97316] shrink-0" />
+          <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
         )}
       </div>
     </div>
