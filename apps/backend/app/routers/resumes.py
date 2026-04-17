@@ -5,7 +5,6 @@ import copy
 import hashlib
 import json
 import logging
-import re
 import unicodedata
 from collections.abc import Awaitable
 from pathlib import Path
@@ -15,6 +14,7 @@ from uuid import uuid4
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 
+from app.config_cache import get_content_language, load_config as _load_config
 from app.database import db
 from app.pdf import render_resume_pdf, PDFRenderError
 from app.config import settings
@@ -43,9 +43,13 @@ from app.schemas import (
 )
 from app.services.parser import parse_document, parse_resume_to_json, restore_dates_from_markdown
 from app.services.improver import (
+    MONTH_PATTERN,
+    apply_diffs,
     extract_job_keywords,
     generate_improvements,
+    generate_resume_diffs,
     improve_resume,
+    verify_diff_result,
 )
 from app.services.refiner import refine_resume, calculate_keyword_match
 from app.schemas.refinement import RefinementConfig
@@ -55,30 +59,6 @@ from app.services.cover_letter import (
     generate_resume_title,
 )
 from app.prompts import DEFAULT_IMPROVE_PROMPT_ID, IMPROVE_PROMPT_OPTIONS
-
-
-def _load_config() -> dict:
-    """Load configuration from config file."""
-    config_path = settings.config_path
-    if not config_path.exists():
-        return {}
-    try:
-        return json.loads(config_path.read_text())
-    except (json.JSONDecodeError, OSError) as e:
-        logger.error("Failed to load config: %s", e)
-        return {}
-
-
-def _load_feature_config() -> dict:
-    """Load feature configuration from config file."""
-    return _load_config()
-
-
-def _get_content_language() -> str:
-    """Get configured content language from config file."""
-    config = _load_config()
-    # Use content_language, fall back to legacy 'language' field, then default to 'en'
-    return config.get("content_language", config.get("language", "en"))
 
 
 def _get_default_prompt_id() -> str:
@@ -171,15 +151,9 @@ def _get_original_markdown(resume: dict[str, Any]) -> str | None:
     return None
 
 
-_MONTH_RE = re.compile(
-    r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b",
-    re.IGNORECASE,
-)
-
-
 def _has_month(date_str: str) -> bool:
     """Return True if the date string contains a month name."""
-    return bool(_MONTH_RE.search(date_str))
+    return bool(MONTH_PATTERN.search(date_str))
 
 
 def _restore_original_dates(
@@ -703,7 +677,7 @@ async def improve_resume_preview_endpoint(
     if not job:
         raise HTTPException(status_code=404, detail="Job description not found")
 
-    language = _get_content_language()
+    language = get_content_language()
     prompt_id = request.prompt_id or _get_default_prompt_id()
 
     stage = "load_job_keywords"
@@ -765,26 +739,63 @@ async def _improve_preview_flow(
                 e,
             )
     original_resume_data = _get_original_resume_data(resume)
-    improved_data = await improve_resume(
-        original_resume=resume["content"],
-        job_description=job["content"],
-        job_keywords=job_keywords,
-        language=language,
-        prompt_id=prompt_id,
-        original_resume_data=original_resume_data,
-    )
     # Collect warnings throughout the process
     response_warnings: list[str] = []
 
+    # Diff-based improvement: generate targeted changes, apply with verification
+    if original_resume_data:
+        diff_result = await generate_resume_diffs(
+            original_resume=resume["content"],
+            job_description=job["content"],
+            job_keywords=job_keywords,
+            language=language,
+            prompt_id=prompt_id,
+            original_resume_data=original_resume_data,
+        )
+
+        improved_data, applied_changes, rejected_changes = apply_diffs(
+            original=original_resume_data,
+            changes=diff_result.changes,
+        )
+
+        diff_warnings = verify_diff_result(
+            original=original_resume_data,
+            result=improved_data,
+            applied_changes=applied_changes,
+            job_keywords=job_keywords,
+        )
+        response_warnings.extend(diff_warnings)
+
+        if rejected_changes:
+            response_warnings.append(
+                f"{len(rejected_changes)} change(s) rejected during verification"
+            )
+
+        logger.info(
+            "Diff-based improve: %d applied, %d rejected, %d warnings",
+            len(applied_changes),
+            len(rejected_changes),
+            len(diff_warnings),
+        )
+    else:
+        # Fallback to full-output mode when no structured data available
+        improved_data = await improve_resume(
+            original_resume=resume["content"],
+            job_description=job["content"],
+            job_keywords=job_keywords,
+            language=language,
+            prompt_id=prompt_id,
+            original_resume_data=original_resume_data,
+        )
+
+    # Safety nets (defense in depth — should rarely activate with diff-based flow)
     improved_data, preserve_warnings = _preserve_personal_info(
         original_resume_data,
         improved_data,
     )
     response_warnings.extend(preserve_warnings)
 
-    # Post-processing safety nets
     improved_data = _restore_original_dates(original_resume_data, improved_data)
-    # Restore month-inclusive dates from original markdown (bulletproof fallback)
     original_markdown = _get_original_markdown(resume)
     if original_markdown:
         improved_data = restore_dates_from_markdown(improved_data, original_markdown)
@@ -921,10 +932,10 @@ async def improve_resume_confirm_endpoint(
     if not job:
         raise HTTPException(status_code=404, detail="Job description not found")
 
-    feature_config = _load_feature_config()
+    feature_config = _load_config()
     enable_cover_letter = feature_config.get("enable_cover_letter", False)
     enable_outreach = feature_config.get("enable_outreach_message", False)
-    language = _get_content_language()
+    language = get_content_language()
 
     stage = "serialize_improved_data"
     detail = "Failed to confirm resume. Please try again."
@@ -1065,10 +1076,10 @@ async def improve_resume_endpoint(
         raise HTTPException(status_code=404, detail="Job description not found")
 
     # Load feature configuration and content language
-    feature_config = _load_feature_config()
+    feature_config = _load_config()
     enable_cover_letter = feature_config.get("enable_cover_letter", False)
     enable_outreach = feature_config.get("enable_outreach_message", False)
-    language = _get_content_language()
+    language = get_content_language()
 
     try:
         # Extract keywords from job description
@@ -1078,26 +1089,63 @@ async def improve_resume_endpoint(
         prompt_id = request.prompt_id or _get_default_prompt_id()
 
         original_resume_data = _get_original_resume_data(resume)
-        improved_data = await improve_resume(
-            original_resume=resume["content"],
-            job_description=job["content"],
-            job_keywords=job_keywords,
-            language=language,
-            prompt_id=prompt_id,
-            original_resume_data=original_resume_data,
-        )
         # Collect warnings throughout the process
         response_warnings: list[str] = []
 
+        # Diff-based improvement: generate targeted changes, apply with verification
+        if original_resume_data:
+            diff_result = await generate_resume_diffs(
+                original_resume=resume["content"],
+                job_description=job["content"],
+                job_keywords=job_keywords,
+                language=language,
+                prompt_id=prompt_id,
+                original_resume_data=original_resume_data,
+            )
+
+            improved_data, applied_changes, rejected_changes = apply_diffs(
+                original=original_resume_data,
+                changes=diff_result.changes,
+            )
+
+            diff_warnings = verify_diff_result(
+                original=original_resume_data,
+                result=improved_data,
+                applied_changes=applied_changes,
+                job_keywords=job_keywords,
+            )
+            response_warnings.extend(diff_warnings)
+
+            if rejected_changes:
+                response_warnings.append(
+                    f"{len(rejected_changes)} change(s) rejected during verification"
+                )
+
+            logger.info(
+                "Diff-based improve (legacy): %d applied, %d rejected, %d warnings",
+                len(applied_changes),
+                len(rejected_changes),
+                len(diff_warnings),
+            )
+        else:
+            # Fallback to full-output mode when no structured data available
+            improved_data = await improve_resume(
+                original_resume=resume["content"],
+                job_description=job["content"],
+                job_keywords=job_keywords,
+                language=language,
+                prompt_id=prompt_id,
+                original_resume_data=original_resume_data,
+            )
+
+        # Safety nets (defense in depth)
         improved_data, preserve_warnings = _preserve_personal_info(
             original_resume_data,
             improved_data,
         )
         response_warnings.extend(preserve_warnings)
 
-        # Post-processing safety nets
         improved_data = _restore_original_dates(original_resume_data, improved_data)
-        # Restore month-inclusive dates from original markdown (bulletproof fallback)
         original_markdown = _get_original_markdown(resume)
         if original_markdown:
             improved_data = restore_dates_from_markdown(improved_data, original_markdown)
@@ -1529,7 +1577,7 @@ async def generate_cover_letter_endpoint(resume_id: str) -> GenerateContentRespo
         )
 
     # Get language setting
-    language = _get_content_language()
+    language = get_content_language()
 
     # Generate cover letter
     try:
@@ -1600,7 +1648,7 @@ async def generate_outreach_endpoint(resume_id: str) -> GenerateContentResponse:
         )
 
     # Get language setting
-    language = _get_content_language()
+    language = get_content_language()
 
     # Generate outreach message
     try:

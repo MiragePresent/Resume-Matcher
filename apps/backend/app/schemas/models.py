@@ -737,7 +737,6 @@ class HealthResponse(BaseModel):
     """Health check response."""
 
     status: str
-    llm: dict[str, Any]
 
 
 class StatusResponse(BaseModel):
@@ -748,3 +747,27 @@ class StatusResponse(BaseModel):
     llm_healthy: bool
     has_master_resume: bool
     database_stats: dict[str, Any]
+
+
+# Diff-Based Improvement Models
+
+
+class ResumeChange(BaseModel):
+    """A single targeted change the LLM wants to make to the resume."""
+
+    path: str = Field(
+        description="Dot+bracket path, e.g. 'workExperience[0].description[1]'"
+    )
+    action: Literal["replace", "append", "reorder"]
+    original: str | None = Field(
+        default=None, description="Current text at path — for verification"
+    )
+    value: str | list[str] = Field(description="New content")
+    reason: str = Field(description="Why this change helps match the JD")
+
+
+class ImproveDiffResult(BaseModel):
+    """LLM output: a list of targeted resume changes."""
+
+    changes: list[ResumeChange] = Field(default_factory=list)
+    strategy_notes: str = Field(default="")
