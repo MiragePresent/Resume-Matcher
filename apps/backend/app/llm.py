@@ -25,11 +25,6 @@ def _configure_litellm_logging() -> None:
 
 _configure_litellm_logging()
 
-# LLM timeout configuration (seconds) - base values
-LLM_TIMEOUT_HEALTH_CHECK = 30
-LLM_TIMEOUT_COMPLETION = 120
-LLM_TIMEOUT_JSON = 180  # JSON completions may take longer
-
 # JSON-010: JSON extraction safety limits
 MAX_JSON_EXTRACTION_RECURSION = 10
 MAX_JSON_CONTENT_SIZE = 1024 * 1024  # 1MB
@@ -425,7 +420,7 @@ async def check_llm_health(
     prompt = test_prompt or "Hi"
 
     try:
-        # Make a minimal test call with timeout
+        # Make a minimal test call
         # Pass API key directly to avoid race conditions with global os.environ
         kwargs: dict[str, Any] = {
             "model": model_name,
@@ -433,7 +428,6 @@ async def check_llm_health(
             "max_tokens": 16,
             "api_key": config.api_key,
             "api_base": _normalize_api_base(config.provider, config.api_base),
-            "timeout": LLM_TIMEOUT_HEALTH_CHECK,
         }
         reasoning_effort = _get_reasoning_effort(config.provider, model_name)
         if reasoning_effort:
@@ -529,7 +523,6 @@ async def complete(
             "model": "primary",
             "messages": messages,
             "max_tokens": max_tokens,
-            "timeout": LLM_TIMEOUT_COMPLETION,
         }
         if _supports_temperature(config.provider, model_name):
             kwargs["temperature"] = temperature
@@ -624,35 +617,6 @@ def _get_retry_temperature(attempt: int, base_temp: float = 0.1) -> float:
     """
     temperatures = [base_temp, 0.3, 0.5, 0.7]
     return temperatures[min(attempt, len(temperatures) - 1)]
-
-
-def _calculate_timeout(
-    operation: str,
-    max_tokens: int = 4096,
-    provider: str = "openai",
-) -> int:
-    """LLM-005: Calculate adaptive timeout based on operation and parameters."""
-    base_timeouts = {
-        "health_check": LLM_TIMEOUT_HEALTH_CHECK,
-        "completion": LLM_TIMEOUT_COMPLETION,
-        "json": LLM_TIMEOUT_JSON,
-    }
-
-    base = base_timeouts.get(operation, LLM_TIMEOUT_COMPLETION)
-
-    # Scale by token count (relative to 4096 baseline)
-    token_factor = max(1.0, max_tokens / 4096)
-
-    # Provider-specific latency adjustments
-    provider_factors = {
-        "openai": 1.0,
-        "anthropic": 1.2,
-        "openrouter": 1.5,  # More variable latency
-        "ollama": 2.0,  # Local models can be slower
-    }
-    provider_factor = provider_factors.get(provider, 1.0)
-
-    return int(base * token_factor * provider_factor)
 
 
 def _strip_thinking_tags(content: str) -> str:
@@ -786,7 +750,6 @@ async def complete_json(
                 "model": "primary",
                 "messages": messages,
                 "max_tokens": max_tokens,
-                "timeout": _calculate_timeout("json", max_tokens, config.provider),
             }
             if _supports_temperature(config.provider, model_name):
                 # LLM-002: Increase temperature on retry for variation
